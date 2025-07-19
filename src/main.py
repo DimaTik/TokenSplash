@@ -1,6 +1,7 @@
 import back
 import config
 from enum import Enum
+from pprint import pprint
 
 
 def check_int_input(message):
@@ -19,32 +20,35 @@ def enter_keys():
 
 
 def main():
-	Modes = Enum('Modes', [('SPOT', 1), ('DEMO', 2)])
-	Lenghts = Enum('Lenghts', [('PUBLIC_LEN', 18), ('SECRET_LEN', 36)])
+	Modes = Enum('Modes', [('SPOT', False), ('DEMO', True)])
+	Lengths = Enum('Lengths', [('PUBLIC_LEN', 18), ('SECRET_LEN', 36)])
 
 	input('''Привет, перед началом использования бота заполни пожалуйста файл config,
 ключи api для demo-режима необязательны, если не хочешь использовать его.
 Если всё готово, нажми Enter.''')
 
-	mode = check_int_input('Выберите режим торговли spot(1)/demo(2), напишите цифру. ')
+	mode = bool(check_int_input('Выберите режим торговли spot(0)/demo(1), напишите цифру. '))
 	while True:
 		if mode == Modes['SPOT'].value:
-			if len(config.api_public) == Lenghts['PUBLIC_LEN'].value\
-					and len(config.api_secret) == Lenghts['SECRET_LEN'].value:
+			if len(config.api_public) == Lengths['PUBLIC_LEN'].value\
+					and len(config.api_secret) == Lengths['SECRET_LEN'].value:
+				api_public, api_secret = config.api_public, config.api_secret
 				break
 			else:
-				config.API_public, config.API_secret = enter_keys()
+				config.api_public, config.api_secret = enter_keys()
 		elif mode == Modes['DEMO'].value:
-			if len(config.demo_api_public) == Lenghts['PUBLIC_LEN'].value\
-					and len(config.demo_api_secret) == Lenghts['SECRET_LEN'].value:
+			if len(config.demo_api_public) == Lengths['PUBLIC_LEN'].value\
+					and len(config.demo_api_secret) == Lengths['SECRET_LEN'].value:
+				api_public, api_secret = config.demo_api_public, config.demo_api_secret
 				break
 			else:
-				config.demo_API_public, config.demo_API_secret = enter_keys()
+				config.demo_api_public, config.demo_api_secret = enter_keys()
 
 	token = input('Введите тикер ').upper() + 'USDT'
 	order_volume = check_int_input('Объем одного ордера в $ ')
 
-	trader = back.Trade(config.api_public, config.api_secret, token, order_volume)
+	trader = back.Trade(api_public, api_secret, token, order_volume, mode)
+	trader.work()
 
 
 if __name__ == '__main__':
