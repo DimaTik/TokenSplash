@@ -50,13 +50,19 @@ class Trade:
 					tpOrderType="Limit",
 					slOrderType="Limit",
 				)
+			except exceptions.InvalidRequestError as e:
+				print(e.message)
+				if e.message == 'Not supported symbols':
+					print('Указан несуществующий токен')
+					self.token = input('Введите новый ').upper() + 'USDT'
+				elif e.message == 'Insufficient balance.':
+					print('У вас недостаточно средств')
+					self.order_volume = Checker.check_int_input('Введите новый объем одного ордера ')
+
+			else:
 				print('make_order')
 				print(req)
 				return volume, req['result']['orderId']
-			except exceptions.InvalidRequestError:
-				print(exceptions.InvalidRequestError)
-				print('Вы ввели несуществующий тикер')
-				self.token = input('Введите новый ').upper() + 'USDT'
 
 	def __get_base_precision(self):
 		return len(str(self.session.get_instruments_info(
@@ -108,3 +114,14 @@ class Trade:
 				self.__wait_close_position()
 				print('OK')
 			time.sleep(rd.randint(10, 30))
+
+
+class Checker:
+	@staticmethod
+	def check_int_input(message):
+		while True:
+			arg = input(message)
+			if not arg.isnumeric():
+				print('Значок, что ты дурачок, введи цифру')
+			else:
+				return int(arg)

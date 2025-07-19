@@ -1,16 +1,6 @@
 import back
-import config
+from src import config
 from enum import Enum
-from pprint import pprint
-
-
-def check_int_input(message):
-	while True:
-		arg = input(message)
-		if not arg.isnumeric():
-			print('Значок, что ты дурачок, введи цифру')
-		else:
-			return int(arg)
 
 
 def enter_keys():
@@ -27,7 +17,7 @@ def main():
 ключи api для demo-режима необязательны, если не хочешь использовать его.
 Если всё готово, нажми Enter.''')
 
-	mode = bool(check_int_input('Выберите режим торговли spot(0)/demo(1), напишите цифру. '))
+	mode = bool(back.Checker.check_int_input('Выберите режим торговли spot(0)/demo(1), напишите цифру. '))
 	while True:
 		if mode == Modes['SPOT'].value:
 			if len(config.api_public) == Lengths['PUBLIC_LEN'].value\
@@ -45,7 +35,7 @@ def main():
 				config.demo_api_public, config.demo_api_secret = enter_keys()
 
 	token = input('Введите тикер ').upper() + 'USDT'
-	order_volume = check_int_input('Объем одного ордера в $ ')
+	order_volume = back.Checker.check_int_input('Объем одного ордера в $ ')
 	print(token, order_volume, mode)
 
 	trader = back.Trade(api_public, api_secret, token, order_volume, mode)
