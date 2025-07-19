@@ -46,6 +46,7 @@ def main():
 
 	token = input('Введите тикер ').upper() + 'USDT'
 	order_volume = check_int_input('Объем одного ордера в $ ')
+	print(token, order_volume, mode)
 
 	trader = back.Trade(api_public, api_secret, token, order_volume, mode)
 	trader.work()

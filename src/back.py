@@ -15,7 +15,7 @@ class Trade:
 			api_secret=self.api_secret,
 			demo=mode)
 		self.total_volume = 0
-		self.PERCENT_OF_PROFIT = 0.005
+		self.PERCENT_OF_PROFIT = 0.003
 		self.PERCENT_OF_LOSS = 0.002
 		self.PRICE_DEVIATION = 0.0001
 
@@ -41,15 +41,20 @@ class Trade:
 					isLeverage=0,
 					orderFilter="Order",
 					positionIdx=0,
-					tpslMode='Partial',
-					tpOrderType='Limit',
-					slOrderType='Limit',
+
+					takeProfit=take_profit,
+					stopLoss=stop_loss,
 					tpLimitPrice=take_profit,
-					slLimitPrice=stop_loss)
+					slLimitPrice=stop_loss,
+					tpslMode="Full",
+					tpOrderType="Limit",
+					slOrderType="Limit",
+				)
 				print('make_order')
 				print(req)
 				return volume, req['result']['orderId']
 			except exceptions.InvalidRequestError:
+				print(exceptions.InvalidRequestError)
 				print('Вы ввели несуществующий тикер')
 				self.token = input('Введите новый ').upper() + 'USDT'
 
@@ -68,11 +73,11 @@ class Trade:
 	def __wait_close_position(self):
 		while True:
 			order = self.session.get_open_orders(category='spot', symbol=self.token)['result']['list']
-			print(order)
+			# print(order)
 			if not order:
 				break
 			else:
-				print('Жду')
+				print('Wait')
 				time.sleep(3)
 
 	def __check_status_order(self):
