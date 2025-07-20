@@ -125,3 +125,9 @@ class Checker:
 				print('Значок, что ты дурачок, введи цифру')
 			else:
 				return int(arg)
+
+	@staticmethod
+	def enter_keys():
+		public_key = input('Вы не ввели api ключ или ввели неверный. Введите другой public key: ')
+		secret_key = input('Secret key: ')
+		return public_key, secret_key
