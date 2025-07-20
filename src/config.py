@@ -1,4 +1,0 @@
-api_public = 'o5d3x4XplyQ4smtbDB'
-api_secret = '7nEMGDB4k2YaGQ59aaKkKZ4fFyxOaFSM21Ps'
-demo_api_public = "6cFtMpKRna8nZcZoZ8"
-demo_api_secret = "Y9jYkjpELYB5M0VDphYAnmUu0hdj4Mth1DIG"
