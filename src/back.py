@@ -20,7 +20,8 @@ class Trade:
 		self.total_waste = 0
 		self.PERCENT_OF_PROFIT = 0.002
 		self.PERCENT_OF_LOSS = 0.001
-		self.PRICE_DEVIATION = 0.0001
+		self.PRICE_DEVIATION = 0.0005
+		self.LIMIT_OF_LOSS = 3
 
 	def __make_order(self):
 		while True:
@@ -116,6 +117,7 @@ class Trade:
 		             float(data['basePrice']), float(data['cumExecFee']))
 
 	def work(self):
+		cnt_loss = 0
 		while True:
 			order = self.__make_order()
 			# print(order.price)
@@ -139,11 +141,16 @@ class Trade:
 				      f'Убыток: {self.total_waste} Общий наработанный объем за сессию: {self.total_volume} ', end='')
 				if buy_order.price > sell_order.price:
 					print('Сделка: убыточная')
+					cnt_loss += 1
 				else:
 					print('Сделка: прибыльная')
+					cnt_loss = 0
 
 				print('OK')
 				time.sleep(rd.randint(0, 20))
+			if cnt_loss == self.LIMIT_OF_LOSS:
+				break
+
 
 
 class Checker:
