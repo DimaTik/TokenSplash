@@ -1,4 +1,5 @@
 # from pprint import pprint
+import pprint
 import random as rd
 import time
 from pybit.unified_trading import HTTP
@@ -16,12 +17,14 @@ class Trade:
 			api_key=self.api_public,
 			api_secret=self.api_secret,
 			demo=mode)
+		# self.order_volume =
 		self.total_volume = 0
 		self.total_waste = 0
-		self.PERCENT_OF_PROFIT = 0.002
-		self.PERCENT_OF_LOSS = 0.001
-		self.PRICE_DEVIATION = 0.0005
+		self.PERCENT_OF_PROFIT = 0.003
+		self.PERCENT_OF_LOSS = 0.002
+		self.PRICE_DEVIATION = 0.001
 		self.LIMIT_OF_LOSS = 3
+		self.DELAY_CLOSE = 3
 
 	def __make_order(self):
 		while True:
@@ -29,11 +32,14 @@ class Trade:
 				price = self.__get_price_of_token()
 				price_precision = len(str(price).split('.')[-1])
 				base_precision = self.__get_base_precision()
-				price = round(price * (1 - self.PRICE_DEVIATION), price_precision)
-				take_profit = str(round(price * (1+self.PERCENT_OF_PROFIT), price_precision))
-				stop_loss = str(round(price * (1-self.PERCENT_OF_LOSS), price_precision))
+				# price = round(price * (1 - self.PRICE_DEVIATION), price_precision)
+				take_profit = str(round(price * (1 + self.PERCENT_OF_PROFIT), price_precision))
+				stop_loss = str(round(price * (1 - self.PERCENT_OF_LOSS), price_precision))
+				# tpLimitPrice = str(round(float(take_profit) * (1 - self.PRICE_DEVIATION), price_precision))
+				# slLimitPrice = str(round(float(stop_loss) * (1 + self.PRICE_DEVIATION), price_precision))
+				# print(take_profit, tpLimitPrice, stop_loss, slLimitPrice)
 				# print(take_profit, stop_loss)
-				volume = rd.randint(int(self.order_volume*(1-0.1)), int(self.order_volume*(1+0.1)))
+				volume = rd.randint(int(self.order_volume * (1 - 0.1)), int(self.order_volume * (1 + 0.1)))
 				qty = round(volume / price, base_precision)
 				req = self.session.place_order(
 					category="spot",
@@ -55,6 +61,7 @@ class Trade:
 					tpOrderType="Limit",
 					slOrderType="Limit",
 				)
+			# print(req)
 			except exceptions.InvalidRequestError as e:
 				if e.message == 'Not supported symbols':
 					print('Указан несуществующий токен')
@@ -67,6 +74,17 @@ class Trade:
 				# print(req)
 				Order = namedtuple('Order', ['price', 'volume', 'qty', 'order_id'])
 				return Order(price, volume, qty, req['result']['orderId'])
+
+	def __close_order(self, order_qty):
+		self.session.place_order(
+			category="spot",
+			symbol=self.token,
+			side="Sell",
+			orderType="Market",
+			orderFilter="Order",
+			marketUnit="baseCoin",
+			qty=order_qty
+		)
 
 	def __get_base_precision(self):
 		return len(str(self.session.get_instruments_info(
@@ -86,8 +104,25 @@ class Trade:
 			if not order:
 				break
 			else:
-				# print('Wait')
-				time.sleep(3)
+				order_status = order[0]['orderStatus']
+				# pprint.pprint(order)
+				if order_status == 'New':
+					start_time = time.time_ns()
+					# print(start_time)
+					while True:
+						if (time.time_ns() - start_time) // 1000 >= self.DELAY_CLOSE:
+							# order = self.session.get_open_orders(category='spot', symbol=self.token)
+							self.__cancel_pending_order(order[0]['orderId'])
+							try:
+								self.__close_order(order[0]['qty'])
+							except exceptions.InvalidRequestError:
+								break
+							else:
+								print('ATTENTION AUTO-CLOSE')
+								break
+				elif order_status == 'Untriggered':
+					# print('Wait')
+					time.sleep(0.5)
 
 	def __check_status_order(self):
 		# print('check_status_order')
@@ -102,10 +137,10 @@ class Trade:
 		# print('cancel_pending_order')
 		try:
 			self.session.cancel_order(category='spot', orderId=order_id)
-		except exceptions.InvalidRequestError as e:
-			print(e)
+		except exceptions.InvalidRequestError:
+			pass
 
-	def __info_of_last_trade(self):
+	def __info_of_last_order(self):
 		data = self.session.get_order_history(
 			category='spot',
 			symbol=self.token,
@@ -120,22 +155,18 @@ class Trade:
 		cnt_loss = 0
 		while True:
 			order = self.__make_order()
-			# print(order.price)
-			time.sleep(5)
+			time.sleep(1)
 			status = self.__check_status_order()
 			if status == 'New':
 				self.__cancel_pending_order(order.order_id)
-				# print('DELETE')
-			# elif status is None:
-			# 	print('CONTINUE')
-			# 	continue
 			else:
-				buy_order = self.__info_of_last_trade()
+				buy_order = self.__info_of_last_order()
 				self.__wait_close_position()
-				time.sleep(10)
-				sell_order = self.__info_of_last_trade()
-				self.total_volume += buy_order.volume_in_base + sell_order.volume_in_base
-				self.total_waste += buy_order.fee+sell_order.fee-(sell_order.price-buy_order.price)*sell_order.volume_in_token
+				# time.sleep(10)
+				sell_order = self.__info_of_last_order()
+				self.total_volume += round(buy_order.volume_in_base + sell_order.volume_in_base, 2)
+				self.total_waste += round(buy_order.fee + sell_order.fee -
+				                          (sell_order.price - buy_order.price) * sell_order.volume_in_token, 2)
 
 				print(f'Цена покупки: {buy_order.price} Цена продажи: {sell_order.price} Количество монет: {order.qty} '
 				      f'Убыток: {self.total_waste} Общий наработанный объем за сессию: {self.total_volume} ', end='')
@@ -147,10 +178,11 @@ class Trade:
 					cnt_loss = 0
 
 				print('OK')
-				time.sleep(rd.randint(0, 20))
-			if cnt_loss == self.LIMIT_OF_LOSS:
-				break
+		# time.sleep(rd.randint(0, 20))
 
+		# if cnt_loss == self.LIMIT_OF_LOSS:
+		# 	print('AUTO-STOP')
+		# 	break
 
 
 class Checker:
