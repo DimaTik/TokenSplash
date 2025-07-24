@@ -24,7 +24,7 @@ class Trade:
 		self.PERCENT_OF_LOSS = 0.002
 		self.PRICE_DEVIATION = 0.001
 		self.LIMIT_OF_LOSS = 3
-		self.DELAY_CLOSE = 3
+		self.DELAY_CLOSE = 2
 
 	def __make_order(self):
 		while True:
@@ -75,7 +75,7 @@ class Trade:
 				Order = namedtuple('Order', ['price', 'volume', 'qty', 'order_id'])
 				return Order(price, volume, qty, req['result']['orderId'])
 
-	def __close_order(self, order_qty):
+	def __sell(self, order_qty):
 		self.session.place_order(
 			category="spot",
 			symbol=self.token,
@@ -114,19 +114,17 @@ class Trade:
 							# order = self.session.get_open_orders(category='spot', symbol=self.token)
 							self.__cancel_pending_order(order[0]['orderId'])
 							try:
-								self.__close_order(order[0]['qty'])
+								self.__sell(order[0]['qty'])
 							except exceptions.InvalidRequestError:
 								break
 							else:
-								print('ATTENTION AUTO-CLOSE')
+								print('AUTO-CLOSE')
 								break
 				elif order_status == 'Untriggered':
 					# print('Wait')
 					time.sleep(0.5)
 
 	def __check_status_order(self):
-		# print('check_status_order')
-		# print(self.session.get_open_orders(category='spot', symbol=self.token))
 		order = self.session.get_open_orders(category='spot', symbol=self.token)
 		if order['result']['list']:
 			return order['result']['list'][0]['orderStatus']
@@ -134,22 +132,26 @@ class Trade:
 			return None
 
 	def __cancel_pending_order(self, order_id):
-		# print('cancel_pending_order')
 		try:
 			self.session.cancel_order(category='spot', orderId=order_id)
 		except exceptions.InvalidRequestError:
 			pass
 
-	def __info_of_last_order(self):
-		data = self.session.get_order_history(
-			category='spot',
-			symbol=self.token,
-			limit=1,
-		)['result']['list'][0]
-		# pprint(data)
-		order = namedtuple('sell_order', ['volume_in_base', 'volume_in_token', 'price', 'fee'])
+	def info_of_last_order(self, side):
+		while True:
+			data = self.session.get_order_history(
+				category='spot',
+				symbol=self.token,
+				limit=1,
+			)['result']['list'][0]
+			if data['side'] == side:
+				break
+			else:
+				time.sleep(0.5)
+		# pprint.pprint(data)
+		order = namedtuple('order', ['volume_in_base', 'volume_in_token', 'price', 'fee'])
 		return order(float(data['cumExecValue']), float(data['cumExecQty']),
-		             float(data['basePrice']), float(data['cumExecFee']))
+		             float(data['avgPrice']), float(data['cumExecFee']))
 
 	def work(self):
 		cnt_loss = 0
@@ -160,16 +162,18 @@ class Trade:
 			if status == 'New':
 				self.__cancel_pending_order(order.order_id)
 			else:
-				buy_order = self.__info_of_last_order()
+				buy_order = self.info_of_last_order('Buy')
+				# print(buy_order)
 				self.__wait_close_position()
-				# time.sleep(10)
-				sell_order = self.__info_of_last_order()
-				self.total_volume += round(buy_order.volume_in_base + sell_order.volume_in_base, 2)
-				self.total_waste += round(buy_order.fee + sell_order.fee -
-				                          (sell_order.price - buy_order.price) * sell_order.volume_in_token, 2)
+				sell_order = self.info_of_last_order('Sell')
+				# print(sell_order)
+				self.total_volume += buy_order.volume_in_base + sell_order.volume_in_base
+				self.total_waste += buy_order.fee*order.price + sell_order.fee - \
+				                    (sell_order.price - buy_order.price) * sell_order.volume_in_token
 
 				print(f'Цена покупки: {buy_order.price} Цена продажи: {sell_order.price} Количество монет: {order.qty} '
-				      f'Убыток: {self.total_waste} Общий наработанный объем за сессию: {self.total_volume} ', end='')
+				      f'Убыток: {self.total_waste:.2f} Общий наработанный объем за сессию: {self.total_volume:.2f} ',
+				      end='')
 				if buy_order.price > sell_order.price:
 					print('Сделка: убыточная')
 					cnt_loss += 1
@@ -178,11 +182,12 @@ class Trade:
 					cnt_loss = 0
 
 				print('OK')
-		# time.sleep(rd.randint(0, 20))
 
-		# if cnt_loss == self.LIMIT_OF_LOSS:
-		# 	print('AUTO-STOP')
-		# 	break
+				time.sleep(rd.randint(0, 20))
+
+			if cnt_loss == self.LIMIT_OF_LOSS:
+				print('AUTO-STOP')
+				break
 
 
 class Checker:
