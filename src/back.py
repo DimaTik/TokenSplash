@@ -1,4 +1,3 @@
-# from pprint import pprint
 import pprint
 import random as rd
 import time
@@ -9,15 +8,12 @@ from collections import namedtuple
 
 class Trade:
 	def __init__(self, api_public, api_secret, token, order_volume, mode):
-		self.api_public = api_public
-		self.api_secret = api_secret
 		self.token = token
 		self.order_volume = order_volume
 		self.session = HTTP(
-			api_key=self.api_public,
-			api_secret=self.api_secret,
+			api_key=api_public,
+			api_secret=api_secret,
 			demo=mode)
-		# self.order_volume =
 		self.total_volume = 0
 		self.total_waste = 0
 		self.PERCENT_OF_PROFIT = 0.003
@@ -35,10 +31,6 @@ class Trade:
 				# price = round(price * (1 - self.PRICE_DEVIATION), price_precision)
 				take_profit = str(round(price * (1 + self.PERCENT_OF_PROFIT), price_precision))
 				stop_loss = str(round(price * (1 - self.PERCENT_OF_LOSS), price_precision))
-				# tpLimitPrice = str(round(float(take_profit) * (1 - self.PRICE_DEVIATION), price_precision))
-				# slLimitPrice = str(round(float(stop_loss) * (1 + self.PRICE_DEVIATION), price_precision))
-				# print(take_profit, tpLimitPrice, stop_loss, slLimitPrice)
-				# print(take_profit, stop_loss)
 				volume = rd.randint(int(self.order_volume * (1 - 0.1)), int(self.order_volume * (1 + 0.1)))
 				qty = round(volume / price, base_precision)
 				req = self.session.place_order(
@@ -61,7 +53,6 @@ class Trade:
 					tpOrderType="Limit",
 					slOrderType="Limit",
 				)
-			# print(req)
 			except exceptions.InvalidRequestError as e:
 				if e.message == 'Not supported symbols':
 					print('Указан несуществующий токен')
@@ -70,8 +61,6 @@ class Trade:
 					print('У вас недостаточно средств')
 					self.order_volume = Checker.check_int_input('Введите новый объем одного ордера ')
 			else:
-				# print('make_order')
-				# print(req)
 				Order = namedtuple('Order', ['price', 'volume', 'qty', 'order_id'])
 				return Order(price, volume, qty, req['result']['orderId'])
 
