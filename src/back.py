@@ -17,7 +17,7 @@ class Trade:
 		self.total_volume = 0
 		self.total_waste = 0
 		self.PERCENT_OF_PROFIT = 0.003
-		self.PERCENT_OF_LOSS = 0.002
+		self.PERCENT_OF_LOSS = 0.001
 		self.PRICE_DEVIATION = 0.001
 		self.LIMIT_OF_LOSS = 3
 		self.DELAY_CLOSE = 2
@@ -28,7 +28,6 @@ class Trade:
 				price = self.__get_price_of_token()
 				price_precision = len(str(price).split('.')[-1])
 				base_precision = self.__get_base_precision()
-				# price = round(price * (1 - self.PRICE_DEVIATION), price_precision)
 				take_profit = str(round(price * (1 + self.PERCENT_OF_PROFIT), price_precision))
 				stop_loss = str(round(price * (1 - self.PERCENT_OF_LOSS), price_precision))
 				volume = rd.randint(int(self.order_volume * (1 - 0.1)), int(self.order_volume * (1 + 0.1)))
@@ -95,12 +94,14 @@ class Trade:
 			else:
 				order_status = order[0]['orderStatus']
 				# pprint.pprint(order)
-				if order_status == 'New':
+				if order_status == 'Untriggered':
+					# print('Wait')
+					time.sleep(0.5)
+				elif order_status == 'New':
 					start_time = time.time_ns()
 					# print(start_time)
 					while True:
 						if (time.time_ns() - start_time) // 1000 >= self.DELAY_CLOSE:
-							# order = self.session.get_open_orders(category='spot', symbol=self.token)
 							self.__cancel_pending_order(order[0]['orderId'])
 							try:
 								self.__sell(order[0]['qty'])
@@ -108,15 +109,11 @@ class Trade:
 								break
 							else:
 								print('AUTO-CLOSE')
-								break
-				elif order_status == 'Untriggered':
-					# print('Wait')
-					time.sleep(0.5)
 
 	def __check_status_order(self):
-		order = self.session.get_open_orders(category='spot', symbol=self.token)
-		if order['result']['list']:
-			return order['result']['list'][0]['orderStatus']
+		order = self.session.get_open_orders(category='spot', symbol=self.token)['result']['list']
+		if order:
+			return order[0]['orderStatus']
 		else:
 			return None
 
@@ -126,44 +123,45 @@ class Trade:
 		except exceptions.InvalidRequestError:
 			pass
 
-	def info_of_last_order(self, side):
+	def info_of_sell_order(self):
+		order = namedtuple('order', ['volume_in_base', 'volume_in_token', 'price', 'fee'])
 		while True:
 			data = self.session.get_order_history(
 				category='spot',
 				symbol=self.token,
 				limit=1,
 			)['result']['list'][0]
-			if data['side'] == side:
-				break
+			# pprint.pprint(data)
+			if data['avgPrice'] != '' and data['side'] == 'Sell':
+				return order(float(data['cumExecValue']), float(data['cumExecQty']),
+				             float(data['avgPrice']), float(data['cumExecFee']))
 			else:
-				time.sleep(0.5)
-		# pprint.pprint(data)
-		order = namedtuple('order', ['volume_in_base', 'volume_in_token', 'price', 'fee'])
-		return order(float(data['cumExecValue']), float(data['cumExecQty']),
-		             float(data['avgPrice']), float(data['cumExecFee']))
+				time.sleep(2)
 
 	def work(self):
 		cnt_loss = 0
 		while True:
 			order = self.__make_order()
-			time.sleep(1)
+			time.sleep(3)
 			status = self.__check_status_order()
 			if status == 'New':
 				self.__cancel_pending_order(order.order_id)
+			# if len(self.session.get_open_orders(category='spot', symbol=self.token)['result']['list']) == 2:
+			# 	self.__sell(order.qty)
 			else:
-				buy_order = self.info_of_last_order('Buy')
-				# print(buy_order)
 				self.__wait_close_position()
-				sell_order = self.info_of_last_order('Sell')
-				# print(sell_order)
-				self.total_volume += buy_order.volume_in_base + sell_order.volume_in_base
-				self.total_waste += buy_order.fee*order.price + sell_order.fee - \
-				                    (sell_order.price - buy_order.price) * sell_order.volume_in_token
+				time.sleep(10)
 
-				print(f'Цена покупки: {buy_order.price} Цена продажи: {sell_order.price} Количество монет: {order.qty} '
+				sell_order = self.info_of_sell_order()
+				self.total_volume += order.volume + sell_order.volume_in_base
+				self.total_waste += sell_order.fee * order.price + (order.qty/1000*order.price) - \
+				(sell_order.price - order.price) * order.qty
+
+				print(f'Цена покупки: {order.price} Цена продажи: {sell_order.price} Количество монет: {order.qty} '
 				      f'Убыток: {self.total_waste:.2f} Общий наработанный объем за сессию: {self.total_volume:.2f} ',
 				      end='')
-				if buy_order.price > sell_order.price:
+
+				if order.price > sell_order.price:
 					print('Сделка: убыточная')
 					cnt_loss += 1
 				else:
@@ -172,7 +170,7 @@ class Trade:
 
 				print('OK')
 
-				time.sleep(rd.randint(0, 20))
+				# time.sleep(rd.randint(0, 20))
 
 			if cnt_loss == self.LIMIT_OF_LOSS:
 				print('AUTO-STOP')
